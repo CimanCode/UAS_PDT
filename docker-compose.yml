@@ -1,0 +1,89 @@
+version: "3.8"
+
+services:
+    # Laravel Application
+    app:
+        build: .
+        image: laravel-docker
+        container_name: laravel-docker
+        restart: unless-stopped
+        working_dir: /var/www/laravel-docker
+        tty: true
+        networks:
+            - app-network
+        volumes:
+            - ./:/var/www
+            - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+        environment:
+            SERVICE_NAME: app
+            SERVICE_TAGS: dev
+
+    webserver:
+        image: nginx:alpine
+        container_name: nginx
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "2024:80"
+        volumes:
+            - ./:/var/www
+            - ./nginx/conf.d/:/etc/nginx/conf.d/
+        networks:
+            - app-network
+
+    db:
+        image: mysql:5.7
+        container_name: mysql
+        restart: unless-stopped
+        tty: true
+        environment:
+            MYSQL_DATABASE: laravel
+            MYSQL_ROOT_PASSWORD: secret
+            MYSQL_PASSWORD: laravel
+            MYSQL_USER: laravel_docker
+        volumes:
+            - dbdata:/var/lib/mysql
+        ports:
+            - "3306:3306"
+        networks:
+            - app-network
+
+    mysql_slave1:
+        image: mysql:5.7
+        container_name: mysql_slave1
+        environment:
+            MYSQL_ROOT_PASSWORD: scret
+        depends_on:
+            - db
+        ports:
+            - "3307:3306"
+        volumes:
+            - mysql_slave1_data:/var/lib/mysql
+        networks:
+            - app-network
+        command: --server-id=2 --replicate-do-db=laravel --log-bin=mysql-bin --relay-log=mysql-relay-bin --read-only=1
+
+    mysql_slave2:
+        image: mysql:5.7
+        container_name: mysql_slave2
+        environment:
+            MYSQL_ROOT_PASSWORD: scret
+        depends_on:
+            - db
+        ports:
+            - "3308:3306"
+        volumes:
+            - mysql_slave2_data:/var/lib/mysql
+        networks:
+            - app-network
+        command: --server-id=3 --replicate-do-db=laravel --log-bin=mysql-bin --relay-log=mysql-relay-bin --read-only=1
+
+networks:
+    app-network:
+        driver: bridge
+
+volumes:
+    dbdata:
+    mysql_slave1_data:
+    mysql_slave2_data:
+        driver: local
